@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      String    // Question Setter, Reviewer, Examination Authority, Examination Center, Admin
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  createdPapers   QuestionPaper[] @relation("CreatedPapers")
+  reviewedPapers  QuestionPaper[] @relation("ReviewedPapers")
+  approvedPapers  QuestionPaper[] @relation("ApprovedPapers")
+  scheduledPapers QuestionPaper[] @relation("ScheduledPapers")
+  releasedPapers  QuestionPaper[] @relation("ReleasedPapers")
+  reviews         Review[]
+  auditLogs       AuditLog[]
+  securityEvents  SecurityEvent[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model QuestionPaper {
+  id               String    @id @default(cuid())
+  title            String
+  subject          String?
+  course           String?
+  semester         String?
+  department       String?
+  encryptedContent String
+  iv               String
+  contentHash      String
+  status           String    @default("Created") // Created, Reviewed, Rejected, Approved, Scheduled, Released
+  releaseStatus    String    @default("Locked")  // Locked, Ready, Released
+  examDate         String?
+  examTime         DateTime?
+  
+  createdById      String
+  createdBy        User      @relation("CreatedPapers", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  reviewedById     String?
+  reviewedBy       User?     @relation("ReviewedPapers", fields: [reviewedById], references: [id])
+  reviewedAt       DateTime?
+  reviewComments   String?
+  rejectionReason  String?
+  
+  approvedById     String?
+  approvedBy       User?     @relation("ApprovedPapers", fields: [approvedById], references: [id])
+  approvedAt       DateTime?
+  
+  scheduledById    String?
+  scheduledBy      User?     @relation("ScheduledPapers", fields: [scheduledById], references: [id])
+  scheduledAt      DateTime?
+  
+  releasedById     String?
+  releasedBy       User?     @relation("ReleasedPapers", fields: [releasedById], references: [id])
+  releasedAt       DateTime?
+  releasedToDevice String?
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  reviews          Review[]
+
+  @@index([status])
+  @@index([releaseStatus])
+  @@index([createdById])
+  @@index([examTime])
+}
+
+model Review {
+  id              String        @id @default(cuid())
+  paperId         String
+  paper           QuestionPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  reviewerId      String
+  reviewer        User          @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  status          String        // Reviewed, Rejected
+  comments        String?
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([paperId])
+  @@index([reviewerId])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName     String?
+  role         String?
+  action       String   // LOGIN, CREATE_PAPER, etc.
+  resourceType String?
+  resourceId   String?
+  description  String
+  ipAddress    String?
+  userAgent    String?
+  timestamp    DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([timestamp])
+}
+
+model SecurityEvent {
+  id          String    @id @default(cuid())
+  type        String    // UNAUTHORIZED_ACCESS, INVALID_DEVICE, etc.
+  severity    String    // LOW, MEDIUM, HIGH, CRITICAL
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName    String?
+  description String
+  resourceId  String?
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime  @default(now())
+  resolved    Boolean   @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+
+  @@index([severity])
+  @@index([resolved])
+  @@index([timestamp])
+}
